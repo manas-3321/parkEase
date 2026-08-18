@@ -1,17 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldCheck, BrainCircuit, Sparkles, Navigation, AlertTriangle, Eye, Loader2, ClipboardList, Info } from 'lucide-react';
+import { ShieldCheck, BrainCircuit, Sparkles, AlertTriangle, Eye, Loader2, ClipboardList, Camera, UploadCloud, Ruler, Image as ImageIcon, LocateFixed } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-interface PresetItem {
-  id: string;
-  name: string;
-  url: string;
-  description: string;
-  expectedStatus: string;
-  expectedConfidence: number;
-}
 
 export const AddParkingSpacePage: React.FC = () => {
   const { apiFetch } = useAuth();
@@ -20,62 +11,113 @@ export const AddParkingSpacePage: React.FC = () => {
   // Form States
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [address, setAddress] = useState('Crossing Republik Block C, Ghaziabad');
-  const [latitude, setLatitude] = useState('28.6320');
-  const [longitude, setLongitude] = useState('77.4490');
+  const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [pricePerHour, setPricePerHour] = useState('40');
   const [capacity, setCapacity] = useState('2');
   const [vehicleType, setVehicleType] = useState('BOTH');
+  const [dimensions, setDimensions] = useState('18 x 9 ft (Standard SUV)');
   const [imageUrl, setImageUrl] = useState('');
+  const [parkingType, setParkingType] = useState<'INDOOR' | 'OUTDOOR'>('OUTDOOR');
+  const [operatingHours, setOperatingHours] = useState('06:00 AM - 11:00 PM');
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([
+    'CCTV 24/7 Security',
+    'Secured Gated Entrance',
+    'Night Floodlighting',
+    'Animal Protection Spikes',
+  ]);
+
+  const availableFeatureList = [
+    'CCTV 24/7 Security',
+    'Secured Gated Entrance',
+    'Animal Protection Spikes (Prevent dogs/cats sitting on vehicle)',
+    'Night Floodlighting',
+    'EV Fast Charger Station',
+    'On-Site Security Guard',
+    'Ground Level Access',
+    'Automated Boom Barrier',
+  ];
+
+  const toggleFeature = (featureName: string) => {
+    if (selectedFeatures.includes(featureName)) {
+      setSelectedFeatures(selectedFeatures.filter((f) => f !== featureName));
+    } else {
+      setSelectedFeatures([...selectedFeatures, featureName]);
+    }
+  };
+
+  // Location detection state
+  const [locatingUser, setLocatingUser] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleUseCurrentLocation = () => {
+    setFormError(null);
+    if (!navigator.geolocation) {
+      setFormError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setLocatingUser(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        setLatitude(lat.toFixed(6));
+        setLongitude(lng.toFixed(6));
+
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`);
+          const data = await res.json();
+          if (data && data.display_name) {
+            setAddress(data.display_name);
+          } else {
+            setAddress(`Gated Property near (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          }
+        } catch {
+          setAddress(`Gated Property near (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+        } finally {
+          setLocatingUser(false);
+        }
+      },
+      (err) => {
+        setLocatingUser(false);
+        setFormError(`Location permission denied or GPS error: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // AI Loading & Result Overlay
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
 
-  // Pre-configured image presets for hackathon reviewers
-  const imagePresets: PresetItem[] = [
-    {
-      id: 'driveway',
-      name: 'Clean Gated Driveway (Pass)',
-      url: 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&q=80&w=400',
-      description: 'Clearly marked paved residential parking spot.',
-      expectedStatus: 'VERIFIED',
-      expectedConfidence: 94,
-    },
-    {
-      id: 'abstract',
-      name: 'Abstract Color Image (Review)',
-      url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=400',
-      description: 'Abstract colorful image. Lacks parking features.',
-      expectedStatus: 'NEEDS REVIEW',
-      expectedConfidence: 42,
-    },
-    {
-      id: 'blocked',
-      name: 'Trash Blocked Yard (Reject)',
-      url: 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&q=80&w=400',
-      description: 'Littered yard blocked with debris and fences.',
-      expectedStatus: 'REJECTED',
-      expectedConfidence: 88,
-    },
-  ];
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleSelectPreset = (preset: PresetItem) => {
-    setImageUrl(preset.url);
-    // Auto-align naming for simulation keywords triggers
-    if (preset.id === 'abstract') {
-      setName('Test-Fail Suspicious Driveway');
-    } else if (preset.id === 'blocked') {
-      setName('Blocked Trash Courtyard');
-    } else {
-      setName('Modern Sector 10 Garage');
+    if (!file.type.startsWith('image/')) {
+      setFormError('Please select a valid image file.');
+      return;
     }
+
+    setFormError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        setImageUrl(reader.result.toString());
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !address || !latitude || !longitude || !pricePerHour || !capacity || !imageUrl) {
-      alert('Please fill in all listing details.');
+    setFormError(null);
+    if (!imageUrl) {
+      setFormError('Please upload a photo from your gallery or take a picture using your camera.');
       return;
     }
 
@@ -94,7 +136,11 @@ export const AddParkingSpacePage: React.FC = () => {
           pricePerHour,
           capacity,
           vehicleType,
+          dimensions,
           imageUrl,
+          parkingType,
+          operatingHours,
+          features: selectedFeatures.join(', '),
         }),
       });
 
@@ -109,7 +155,7 @@ export const AddParkingSpacePage: React.FC = () => {
       }
 
     } catch (err: any) {
-      alert(err.message || 'Failed to list parking space.');
+      setFormError(err.message || 'Failed to list parking space.');
       setScanning(false);
     }
   };
@@ -121,185 +167,323 @@ export const AddParkingSpacePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 dark:bg-slate-900 py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto bg-white dark:bg-slate-800 rounded-3xl border border-gray-100 dark:border-slate-700 shadow-sm p-8 sm:p-10 space-y-8">
         
-        {/* Left 2 Cols: Form Panel */}
-        <div className="md:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-6">
-          <div>
-            <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-              <ClipboardList className="w-5.5 h-5.5 text-indigo-600" />
-              <span>List Your Parking Space</span>
-            </h2>
-            <p className="text-xs text-gray-400 mt-1">Provide pricing, capacity, location details, and upload space image for AI verification.</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Space Listing Name</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                  placeholder="e.g. Front Gate Private Driveway"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Vehicle Allowed</label>
-                <select
-                  value={vehicleType}
-                  onChange={(e) => setVehicleType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 bg-white"
-                >
-                  <option value="BOTH">Cars & Bikes (Both)</option>
-                  <option value="FOUR_WHEELER">Cars Only</option>
-                  <option value="TWO_WHEELER">Bikes Only</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Street Address</label>
-              <input
-                type="text"
-                required
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                placeholder="Full address"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="col-span-1">
-                <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Latitude</label>
-                <input
-                  type="text"
-                  required
-                  value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Longitude</label>
-                <input
-                  type="text"
-                  required
-                  value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Rate (₹/hour)</label>
-                <input
-                  type="number"
-                  required
-                  value={pricePerHour}
-                  onChange={(e) => setPricePerHour(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Capacity</label>
-                <input
-                  type="number"
-                  required
-                  value={capacity}
-                  onChange={(e) => setCapacity(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Image URL</label>
-              <input
-                type="text"
-                required
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600"
-                placeholder="Choose a preset on the right or paste photo link"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase font-black text-gray-400 block mb-1">Listing Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600"
-                rows={3}
-                placeholder="Secured gate, proximity markers, CCTV, lighting details..."
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl text-xs shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 transition-all"
-            >
-              <BrainCircuit className="w-4 h-4" />
-              <span>Verify & List Space</span>
-            </button>
-          </form>
+        <div className="border-b border-gray-100 dark:border-slate-700 pb-5">
+          <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2.5">
+            <ClipboardList className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            <span>List Your Parking Space</span>
+          </h2>
+          <p className="text-xs text-gray-400 dark:text-gray-400 mt-1.5 leading-relaxed">Provide pricing, space dimensions, location details, and upload a photo from your gallery or camera.</p>
         </div>
 
-        {/* Right 1 Col: Presets */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 space-y-4">
-            <h3 className="font-extrabold text-sm text-gray-800 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-indigo-500" />
-              <span>Demo Image Presets</span>
-            </h3>
-            <p className="text-[10px] text-gray-400 leading-normal">
-              Click a preset below to prefill photos and names. Test different AI scanner verification outcomes.
-            </p>
-            
-            <div className="flex flex-col gap-3">
-              {imagePresets.map((preset) => {
-                const isSelected = imageUrl === preset.url;
-                
+        <form onSubmit={handleSubmit} className="space-y-6">
+          
+          {formError && (
+            <div className="p-4 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-2xl text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
+              <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Space Listing Name</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+                placeholder="e.g. Front Gate Private Driveway"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Vehicle Allowed</label>
+              <select
+                value={vehicleType}
+                onChange={(e) => setVehicleType(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+              >
+                <option value="BOTH">Cars & Bikes (Both)</option>
+                <option value="FOUR_WHEELER">Cars Only</option>
+                <option value="TWO_WHEELER">Bikes Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Indoor vs Outdoor Parking Lot Environment */}
+          <div>
+            <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Parking Environment Type</label>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setParkingType('OUTDOOR')}
+                className={`p-3.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  parkingType === 'OUTDOOR'
+                    ? 'bg-indigo-50 border-indigo-300 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                <span>Outdoor / Open-Air</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setParkingType('INDOOR')}
+                className={`p-3.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  parkingType === 'INDOOR'
+                    ? 'bg-indigo-50 border-indigo-300 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                <span>Indoor / Covered Basement</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Operating Time Slot Range */}
+          <div>
+            <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">User Accessible Operating Hours</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-1">
+              <select
+                value={operatingHours}
+                onChange={(e) => setOperatingHours(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+              >
+                <option value="24/7 All Day Access">24/7 All Day Access (24 Hours)</option>
+                <option value="06:00 AM - 11:00 PM">06:00 AM - 11:00 PM (Standard Day/Night)</option>
+                <option value="07:00 AM - 10:00 PM">07:00 AM - 10:00 PM (Daytime Only)</option>
+                <option value="08:00 AM - 08:00 PM">08:00 AM - 08:00 PM (Commercial Hours)</option>
+                <option value="10:00 PM - 06:00 AM">10:00 PM - 06:00 AM (Overnight Access Only)</option>
+              </select>
+              <input
+                type="text"
+                value={operatingHours}
+                onChange={(e) => setOperatingHours(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+                placeholder="Or custom range (e.g. 05:30 AM - 11:30 PM)"
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 dark:text-gray-400">Specifies what hours users are allowed to enter and park at your spot.</p>
+          </div>
+
+          {/* Interactive Feature Checklist Options */}
+          <div>
+            <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Select Spot Amenities & Features</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto p-1">
+              {availableFeatureList.map((feature, idx) => {
+                const isChecked = selectedFeatures.includes(feature);
                 return (
-                  <div
-                    key={preset.id}
-                    onClick={() => handleSelectPreset(preset)}
-                    className={`border p-3 rounded-2xl cursor-pointer transition-all flex items-start gap-3 relative ${
-                      isSelected ? 'border-indigo-600 bg-indigo-50/10' : 'border-gray-100 hover:border-gray-200'
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => toggleFeature(feature)}
+                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center gap-2.5 transition-all ${
+                      isChecked
+                        ? 'bg-indigo-50 border-indigo-300 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold'
+                        : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-100 bg-gray-50">
-                      <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <h4 className="text-[11px] font-bold text-gray-800 leading-snug">{preset.name}</h4>
-                      <p className="text-[9px] text-gray-400 leading-tight mt-0.5">{preset.description}</p>
-                      
-                      <div className="flex items-center gap-1 mt-1.5">
-                        <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded ${
-                          preset.expectedStatus === 'VERIFIED'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : preset.expectedStatus === 'REJECTED'
-                            ? 'bg-rose-50 text-rose-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {preset.expectedStatus}
-                        </span>
-                        <span className="text-[8px] text-gray-400 font-medium">({preset.expectedConfidence}% conf)</span>
-                      </div>
-                    </div>
-                  </div>
+                    <span className={`w-4 h-4 rounded-md border flex items-center justify-center text-[10px] shrink-0 ${isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'}`}>
+                      {isChecked ? '✓' : ''}
+                    </span>
+                    <span className="leading-snug">{feature}</span>
+                  </button>
                 );
               })}
             </div>
           </div>
-        </div>
 
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400">Street Address</label>
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locatingUser}
+                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                title="Detect my current GPS coordinates & street address"
+              >
+                <LocateFixed className={`w-3.5 h-3.5 ${locatingUser ? 'animate-spin' : ''}`} />
+                <span>{locatingUser ? 'Locating Property...' : 'Use My Current Location'}</span>
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+              placeholder="Enter street address or click 'Use My Current Location' above"
+            />
+          </div>
+
+          {/* Location Coordinates & Rates Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Latitude</label>
+              <input
+                type="text"
+                required
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+                placeholder="e.g. 28.6320"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Longitude</label>
+              <input
+                type="text"
+                required
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+                placeholder="e.g. 77.4490"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Rate (₹/hour)</label>
+              <input
+                type="number"
+                required
+                value={pricePerHour}
+                onChange={(e) => setPricePerHour(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Capacity</label>
+              <input
+                type="number"
+                required
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Space Dimensions (Length x Width)</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Dropdown Preset Selector */}
+              <div className="relative">
+                <Ruler className="absolute left-3.5 top-3 w-4 h-4 text-violet-500 pointer-events-none" />
+                <select
+                  onChange={(e) => {
+                    if (e.target.value !== 'CUSTOM' && e.target.value !== '') {
+                      setDimensions(e.target.value);
+                    }
+                  }}
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+                >
+                  <option value="">-- Select Car/Bike Size Preset --</option>
+                  <option value="15 x 7 ft (Hatchback - Swift, i20, WagonR)">Hatchback / Small Car (15 x 7 ft)</option>
+                  <option value="17 x 8 ft (Sedan - City, Verna, Dzire)">Standard Sedan (17 x 8 ft)</option>
+                  <option value="19 x 9 ft (Mid/Large SUV - Creta, Fortuner)">Mid/Large SUV (19 x 9 ft)</option>
+                  <option value="21 x 10 ft (Luxury SUV - BMW X5, Audi Q7)">Luxury SUV / Extra Wide (21 x 10 ft)</option>
+                  <option value="9 x 4 ft (Bike/Scooter - Activa, RE, Pulsar)">Two-Wheeler / Bike (9 x 4 ft)</option>
+                  <option value="12 x 6 ft (Multi-Bike Bay - 2-4 Bikes)">Multi-Bike Bay (12 x 6 ft)</option>
+                  <option value="CUSTOM">Custom Dimension (Type manually)</option>
+                </select>
+              </div>
+
+              {/* Input for selected/custom dimension */}
+              <input
+                type="text"
+                required
+                value={dimensions}
+                onChange={(e) => setDimensions(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+                placeholder="Dimension value (e.g. 18 x 9 ft)"
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1.5">Select a pre-filled bike/car category above or type your exact driveway measurements.</p>
+          </div>
+
+          <div>
+            <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Listing Photo (Camera or Device Gallery)</label>
+            
+            {/* Hidden file inputs */}
+            <input
+              id="camera-file-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <input
+              id="gallery-file-input"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+              <button
+                type="button"
+                onClick={() => document.getElementById('camera-file-input')?.click()}
+                className="py-3 px-5 border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-50 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-xs"
+              >
+                <Camera className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Take Photo (Camera)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => document.getElementById('gallery-file-input')?.click()}
+                className="py-3 px-5 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-xs"
+              >
+                <UploadCloud className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                <span>Upload from Gallery</span>
+              </button>
+            </div>
+
+            <input
+              type="text"
+              required
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors"
+              placeholder="Or paste direct image URL"
+            />
+
+            {imageUrl && (
+              <div className="mt-4 relative w-full h-48 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-900 shadow-inner">
+                <img src={imageUrl} alt="Listing Preview" className="w-full h-full object-cover" />
+                <span className="absolute bottom-3 left-3 bg-black/75 text-white text-[10px] font-bold px-3.5 py-1.5 rounded-full backdrop-blur-sm flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-indigo-400" />
+                  <span>Photo Ready for AI Verification</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-[11px] uppercase font-black text-gray-400 dark:text-gray-400 block mb-1.5">Listing Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-600 transition-colors"
+              placeholder="Secured gate, proximity markers, CCTV cameras, night lighting details..."
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-extrabold text-sm shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30 flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99] mt-2"
+          >
+            <ShieldCheck className="w-5 h-5 text-indigo-200" />
+            <span>Verify & List Space</span>
+          </button>
+        </form>
       </div>
 
       {/* AI verification scanning terminal display modal overlay */}
@@ -326,96 +510,61 @@ export const AddParkingSpacePage: React.FC = () => {
               
               {!scanResult ? (
                 <div className="space-y-2 py-4">
-                  <p className="text-slate-400">➔ Initializing image verification payload...</p>
-                  <p className="text-slate-400">➔ Scanning image resolution & channels...</p>
-                  <p className="text-slate-400">➔ Performing object detection: checking space markers...</p>
-                  <div className="flex items-center gap-2 text-indigo-400 pt-3">
+                  <div className="flex items-center gap-2 text-indigo-300">
                     <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    <span>Processing heuristics model matrices...</span>
+                    <span>[1/3] Extracting image features & spatial bounds...</span>
                   </div>
+                  <div className="text-slate-500 pl-6">» Scanning driveway obstacles, gate clearances...</div>
+                  <div className="text-slate-500 pl-6">» Evaluating lighting conditions & surface pavement...</div>
                 </div>
               ) : (
                 <div className="space-y-4 animate-in fade-in duration-300">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col gap-2">
-                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
-                      <span className="text-slate-400">Analysis status</span>
-                      <span className={`font-black ${
+                  <div className="p-3.5 rounded-xl border bg-slate-950/60 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">VERIFICATION_STATUS:</span>
+                      <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
                         scanResult.status === 'VERIFIED'
-                          ? 'text-emerald-400'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50'
                           : scanResult.status === 'REJECTED'
-                          ? 'text-rose-400'
-                          : 'text-amber-400'
-                      }`}>{scanResult.status}</span>
+                          ? 'bg-rose-950 text-rose-400 border border-rose-800/50'
+                          : 'bg-amber-950 text-amber-400 border border-amber-800/50'
+                      }`}>
+                        {scanResult.status}
+                      </span>
                     </div>
-                    <div className="flex justify-between items-center text-xs pt-1">
-                      <span className="text-slate-400">AI Confidence</span>
-                      <span className="font-extrabold text-white">{Math.round(scanResult.confidence * 100)}%</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">CONFIDENCE_SCORE:</span>
+                      <span className="font-bold text-indigo-400">{Math.round(scanResult.confidence * 100)}%</span>
                     </div>
                   </div>
 
-                  {/* Diagnostic Details */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-slate-400 border-b border-slate-800/40 pb-1">
-                      <span>Parking Area Detected</span>
-                      <span className="text-white">{scanResult.details?.parkingAreaDetected || 'N/A'}</span>
+                  {scanResult.details && (
+                    <div className="space-y-1 text-[10px] bg-slate-950/40 p-3 rounded-xl border border-slate-800/40">
+                      <p className="text-slate-400 flex justify-between">
+                        <span>Space Assessment:</span>
+                        <span className="text-slate-200">{scanResult.details.spaceAssessment}</span>
+                      </p>
+                      <p className="text-slate-400 flex justify-between">
+                        <span>Obstacle Hazards:</span>
+                        <span className="text-slate-200">{scanResult.details.potentialIssues}</span>
+                      </p>
                     </div>
-                    <div className="flex justify-between text-slate-400 border-b border-slate-800/40 pb-1">
-                      <span>Image Relevance</span>
-                      <span className="text-white">{scanResult.details?.imageRelevance || 'N/A'}</span>
-                    </div>
-                    <div className="text-slate-400">
-                      <span className="block text-slate-500 font-bold mb-1">Space Assessment:</span>
-                      <p className="text-white leading-normal bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/20">{scanResult.details?.spaceAssessment}</p>
-                    </div>
-                    {scanResult.details?.potentialIssues !== 'NONE' && (
-                      <div className="bg-rose-950/20 border border-rose-900/30 rounded-xl p-3 flex items-start gap-2 mt-2">
-                        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-[10px] font-black uppercase text-rose-400 block">Identified Hazard Warning</span>
-                          <p className="text-rose-300 leading-snug text-[10px] mt-0.5">{scanResult.details?.potentialIssues}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
+
+                  <button
+                    onClick={handleFinish}
+                    className="w-full mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-bold py-3 rounded-xl text-xs transition-all shadow-lg shadow-indigo-600/30"
+                  >
+                    Done (Return to Dashboard)
+                  </button>
                 </div>
               )}
-
             </div>
-
-            {/* Footer Finish Actions */}
-            {scanResult && (
-              <div className="p-5 border-t border-slate-800 bg-slate-950/40 flex flex-col gap-2">
-                {scanResult.status === 'VERIFIED' ? (
-                  <p className="text-[10px] text-emerald-500/80 text-center leading-normal mb-2 flex items-center justify-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Space verified! Listing has been activated live.</span>
-                  </p>
-                ) : scanResult.status === 'NEEDS_REVIEW' ? (
-                  <p className="text-[10px] text-amber-500/80 text-center leading-normal mb-2 flex items-center justify-center gap-1">
-                    <Info className="w-3.5 h-3.5 animate-pulse" />
-                    <span>Requires Manual Verification. Redirected to Admin Queue.</span>
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-rose-500/80 text-center leading-normal mb-2 flex items-center justify-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Verification failed. Listing restricted.</span>
-                  </p>
-                )}
-                
-                <button
-                  onClick={handleFinish}
-                  className="w-full bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 text-slate-300 py-3 rounded-xl text-xs font-bold transition-all"
-                >
-                  Return to Dashboard
-                </button>
-              </div>
-            )}
-
           </div>
         </div>
       )}
-
     </div>
   );
 };
+
 export default AddParkingSpacePage;

@@ -39,12 +39,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
   return <>{children}</>;
 };
 
+import { AutomotiveBackground } from './components/AutomotiveBackground';
+
 export const AppContent: React.FC = () => {
   const { user } = useAuth();
   
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen bg-gray-50 text-gray-800">
+      <div className="flex flex-col min-h-screen relative bg-gray-50 dark:bg-slate-950 text-gray-800 dark:text-gray-100 transition-colors">
+        <AutomotiveBackground />
         <Navbar />
         <main className="flex-1">
           <Routes>
@@ -122,11 +125,15 @@ export const AppContent: React.FC = () => {
   );
 };
 
+import { ThemeProvider } from './context/ThemeContext';
+
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 

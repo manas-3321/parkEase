@@ -46,6 +46,8 @@ export const BookingsHistoryPage: React.FC = () => {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
 
   const fetchBookings = async () => {
     try {
@@ -73,7 +75,7 @@ export const BookingsHistoryPage: React.FC = () => {
       await apiFetch(`/api/bookings/${bookingId}/cancel`, { method: 'POST' });
       fetchBookings();
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel reservation');
+      setError(err.message || 'Failed to cancel reservation');
     }
   };
 
@@ -81,6 +83,8 @@ export const BookingsHistoryPage: React.FC = () => {
     e.preventDefault();
     if (!activeReviewBooking) return;
     setSubmittingReview(true);
+    setReviewError(null);
+    setReviewSuccess(null);
 
     try {
       await apiFetch('/api/reviews', {
@@ -91,13 +95,16 @@ export const BookingsHistoryPage: React.FC = () => {
           comment: reviewComment,
         }),
       });
-      alert('Thank you for your feedback! Review submitted successfully.');
-      setActiveReviewBooking(null);
-      setReviewComment('');
-      setReviewRating(5);
-      fetchBookings();
+      setReviewSuccess('Thank you for your feedback! Review published successfully.');
+      setTimeout(() => {
+        setActiveReviewBooking(null);
+        setReviewComment('');
+        setReviewRating(5);
+        setReviewSuccess(null);
+        fetchBookings();
+      }, 1500);
     } catch (err: any) {
-      alert(err.message || 'Failed to submit review');
+      setReviewError(err.message || 'Failed to submit review');
     } finally {
       setSubmittingReview(false);
     }
@@ -126,7 +133,7 @@ export const BookingsHistoryPage: React.FC = () => {
           <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100 text-center p-6 shadow-sm">
             <Calendar className="w-12 h-12 text-gray-300 mb-3" />
             <h3 className="font-bold text-gray-800 text-sm">No Bookings Yet</h3>
-            <p className="text-xs text-gray-400 mt-1 max-w-xs">You haven't reserved any parking spots yet. Go to your driver dashboard to search and book!</p>
+            <p className="text-xs text-gray-400 mt-1 max-w-xs">You haven't reserved any parking spots yet. Go to your user dashboard to search and book!</p>
           </div>
         ) : (
           <>
@@ -334,6 +341,20 @@ export const BookingsHistoryPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleSubmitReview} className="space-y-4 mt-4">
+                
+                {reviewError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{reviewError}</span>
+                  </div>
+                )}
+
+                {reviewSuccess && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                    <Smile className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{reviewSuccess}</span>
+                  </div>
+                )}
                 
                 {/* Star selection rating */}
                 <div>

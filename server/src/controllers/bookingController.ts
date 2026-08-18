@@ -260,7 +260,7 @@ export class BookingController {
           {
             userId: booking.parkingSpace.ownerId,
             title: 'Spot Occupied',
-            message: `A driver has checked into your spot: ${booking.parkingSpace.name}.`,
+            message: `A user has checked into your spot: ${booking.parkingSpace.name}.`,
           },
         ],
       });
@@ -320,7 +320,7 @@ export class BookingController {
           {
             userId: booking.parkingSpace.ownerId,
             title: 'Spot Available',
-            message: `Driver has checked out. Your spot is now available.`,
+            message: `User has checked out. Your spot is now available.`,
           },
         ],
       });

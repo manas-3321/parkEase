@@ -142,7 +142,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               ? 'bg-emerald-600 text-white'
               : 'bg-white text-gray-800'
           }">
-            ₹${space.pricePerHour}
+            ₹${space.pricePerHour}/h
           </div>
         </div>
       `;

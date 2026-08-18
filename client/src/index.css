@@ -1,4 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Rozha+One&display=swap');
 @import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+.font-hindi-cursive {
+  font-family: 'Kalam', 'Rozha One', cursive, serif;
+}
+
+
+
+/* Custom dark mode background and typography rules */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body,
+.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.bg-white {
+  background-color: #ffffff !important;
+}
+
+/* Light mode high-contrast pure black text rules for maximum visibility */
+:root:not(.dark) .text-gray-400,
+:root:not(.dark) .text-gray-500,
+:root:not(.dark) .text-gray-600,
+:root:not(.dark) .text-slate-400,
+:root:not(.dark) .text-slate-500,
+:root:not(.dark) .text-slate-600 {
+  color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 600 !important;
+}
+
+.dark header,
+.dark .bg-white {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #334155 !important;
+}
+
+.dark .bg-gray-50\/80,
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: #334155 !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
 
 /* Custom utility overrides for Leaflet map styling */
 .leaflet-container {

@@ -98,7 +98,7 @@ export const RegisterPage: React.FC = () => {
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
-                Driver (Find Parking)
+                User (Find Parking)
               </button>
               <button
                 type="button"

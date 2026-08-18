@@ -27,6 +27,14 @@ ChartJS.register(
   Filler
 );
 
+interface ReviewItem {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  driver?: { name: string };
+}
+
 interface ListingItem {
   id: string;
   name: string;
@@ -37,7 +45,10 @@ interface ListingItem {
   status: 'PENDING' | 'VERIFIED' | 'REJECTED';
   verificationScore: number;
   availabilityStatus: 'AVAILABLE' | 'UNAVAILABLE';
-  reviews?: Array<{ rating: number }>;
+  parkingType?: string;
+  operatingHours?: string;
+  features?: string;
+  reviews?: ReviewItem[];
   dynamicPricing?: {
     recommendedPrice: number;
     explanation: string[];
@@ -53,6 +64,43 @@ interface ReservationItem {
   status: string;
   parkingSpace: { name: string };
 }
+
+const TypewriterTagline: React.FC = () => {
+  const text = "Their car, Your cash!";
+  const [displayedText, setDisplayedText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const handleType = () => {
+      if (!isDeleting) {
+        if (index < text.length) {
+          setDisplayedText((prev) => prev + text.charAt(index));
+          setIndex((prev) => prev + 1);
+        } else {
+          setTimeout(() => setIsDeleting(true), 2500);
+        }
+      } else {
+        if (displayedText.length > 0) {
+          setDisplayedText((prev) => prev.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setIndex(0);
+        }
+      }
+    };
+
+    const timer = setTimeout(handleType, isDeleting ? 40 : 90);
+    return () => clearTimeout(timer);
+  }, [displayedText, isDeleting, index]);
+
+  return (
+    <span className="inline-flex items-center text-sm sm:text-base font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/80 border-2 border-indigo-300 dark:border-indigo-700 px-4 py-1.5 rounded-full shadow-sm tracking-wide">
+      <span>{displayedText}</span>
+      <span className="w-1 h-4 sm:h-5 bg-indigo-600 dark:bg-indigo-400 ml-1.5 animate-pulse rounded-full"></span>
+    </span>
+  );
+};
 
 export const OwnerDashboard: React.FC = () => {
   const { apiFetch, user } = useAuth();
@@ -182,7 +230,10 @@ export const OwnerDashboard: React.FC = () => {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Host Dashboard</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight">Host Dashboard</h2>
+              <TypewriterTagline />
+            </div>
             <p className="text-xs text-gray-500 mt-1">Monitor parking space utilization, view AI recommended dynamic prices, and track revenue flow.</p>
           </div>
           <button
@@ -314,16 +365,27 @@ export const OwnerDashboard: React.FC = () => {
                         <h4 className="font-extrabold text-base text-gray-900">{space.name}</h4>
                         <p className="text-xs text-gray-500">{space.address}</p>
 
-                        <div className="flex items-center gap-4 pt-2">
+                        <div className="flex items-center gap-4 pt-2 flex-wrap">
                           <div>
                             <span className="text-[10px] text-gray-400 block uppercase">Current Price</span>
                             <span className="font-black text-sm text-indigo-600">₹{space.pricePerHour}/hour</span>
                           </div>
                           <div>
                             <span className="text-[10px] text-gray-400 block uppercase">Vehicle Rule</span>
-                            <span className="text-xs font-semibold text-gray-700">
+                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                               {space.vehicleType === 'BOTH' ? 'Cars & Bikes' : space.vehicleType === 'FOUR_WHEELER' ? 'Cars Only' : 'Bikes Only'}
                             </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-gray-400 block uppercase">Environment & Hours</span>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-300 px-2 py-0.5 rounded-full border border-sky-100 dark:border-sky-900">
+                                {space.parkingType === 'INDOOR' ? '🏢 Indoor Basement' : '☀️ Outdoor Open-Air'}
+                              </span>
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-100 dark:border-amber-900">
+                                {space.operatingHours || '06:00 AM - 11:00 PM'}
+                              </span>
+                            </div>
                           </div>
                           <div>
                             <span className="text-[10px] text-gray-400 block uppercase">Marketplace Status</span>
@@ -331,13 +393,59 @@ export const OwnerDashboard: React.FC = () => {
                               onClick={() => handleToggleAvailability(space.id, space.availabilityStatus)}
                               className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all mt-1 ${
                                 space.availabilityStatus === 'AVAILABLE'
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                  : 'bg-rose-50 border-rose-200 text-rose-600'
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/60 dark:border-emerald-900 dark:text-emerald-400'
+                                  : 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/60 dark:border-rose-900 dark:text-rose-400'
                               }`}
                             >
                               {space.availabilityStatus === 'AVAILABLE' ? 'Live/Available' : 'Paused/Unavailable'}
                             </button>
                           </div>
+                        </div>
+
+                        {/* Spot Amenities & Features Badges List */}
+                        {space.features && (
+                          <div className="pt-3 border-t border-gray-100 dark:border-slate-700 mt-2">
+                            <span className="text-[9px] uppercase font-bold text-gray-400 block mb-1.5">Selected Spot Amenities & Security Features</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {space.features.split(',').map((feat, idx) => (
+                                <span key={idx} className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900 flex items-center gap-1">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                  <span>{feat.trim()}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Driver Guest Reviews & Ratings Breakdown */}
+                        <div className="pt-3 border-t border-gray-100 dark:border-slate-700 mt-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] uppercase font-bold text-gray-400 flex items-center gap-1">
+                              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                              <span>Customer Reviews & Guest Ratings ({space.reviews?.length || 0})</span>
+                            </span>
+                            <span className="text-xs font-black text-gray-800 dark:text-slate-100">
+                              {space.reviews && space.reviews.length > 0
+                                ? (space.reviews.reduce((acc, r) => acc + r.rating, 0) / space.reviews.length).toFixed(1)
+                                : '4.8'} ★
+                            </span>
+                          </div>
+
+                          {(!space.reviews || space.reviews.length === 0) ? (
+                            <p className="text-[10px] text-gray-400 italic">No written guest reviews submitted yet for this space.</p>
+                          ) : (
+                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                              {space.reviews.map((rev) => (
+                                <div key={rev.id} className="bg-gray-50/80 dark:bg-slate-800/80 p-2.5 rounded-xl border border-gray-100 dark:border-slate-700 flex flex-col gap-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-gray-800 dark:text-slate-200">{rev.driver?.name || 'Verified User'}</span>
+                                    <span className="text-[10px] font-bold text-amber-500">{'★'.repeat(rev.rating)}</span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 dark:text-slate-300 leading-snug">{rev.comment}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 

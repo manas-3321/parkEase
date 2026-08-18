@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleMapComponent } from '../../components/GoogleMapComponent';
 import { RazorpaySim } from '../../components/RazorpaySim';
-import { Search, MapPin, Clock, Calendar, ShieldCheck, HelpCircle, Star, Compass, AlertTriangle, Sparkles, Navigation, Info } from 'lucide-react';
+import { Search, MapPin, Clock, Calendar, ShieldCheck, HelpCircle, Star, Compass, AlertTriangle, Sparkles, Navigation, Info, LocateFixed, Ruler, List, Map } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface ParkingResult {
@@ -31,6 +31,17 @@ interface ParkingResult {
   estimatedTotal: number;
   recommendedPrice: number;
   recommendedPriceExplanation: string[];
+  dimensions?: string;
+  parkingType?: string;
+  operatingHours?: string;
+  features?: string;
+  reviews?: Array<{
+    id: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    driver?: { name: string };
+  }>;
 }
 
 export const DriverDashboard: React.FC = () => {
@@ -44,12 +55,69 @@ export const DriverDashboard: React.FC = () => {
   const [startTime, setStartTime] = useState('19:00');
   const [duration, setDuration] = useState('3');
   const [vehicleType, setVehicleType] = useState('BOTH');
+  const [mobileTab, setMobileTab] = useState<'map' | 'list'>('map');
 
   // API States
   const [results, setResults] = useState<ParkingResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [locatingUser, setLocatingUser] = useState(false);
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setLocatingUser(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        setSearchLat(lat);
+        setSearchLng(lng);
+
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`);
+          const data = await res.json();
+          if (data && data.display_name) {
+            const parts = data.display_name.split(',');
+            const shortAddress = parts.slice(0, 3).join(', ');
+            setDestination(shortAddress);
+          } else {
+            setDestination(`Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          }
+        } catch {
+          setDestination(`Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+        }
+
+        try {
+          const data = await apiFetch(
+            `/api/parking/search?lat=${lat}&lng=${lng}&date=${date}&startTime=${startTime}&duration=${duration}&vehicleType=${vehicleType}`
+          );
+          setResults(data);
+          if (data.length > 0) {
+            setSelectedSpaceId(data[0].id);
+          } else {
+            setSelectedSpaceId(null);
+          }
+        } catch (err: any) {
+          setError(err.message || 'Failed to search nearby spaces.');
+        } finally {
+          setLocatingUser(false);
+        }
+      },
+      (err) => {
+        setLocatingUser(false);
+        setError(`Location access denied or unavailable: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // Checkout and Payment States
   const [checkoutSpace, setCheckoutSpace] = useState<ParkingResult | null>(null);
@@ -70,12 +138,75 @@ export const DriverDashboard: React.FC = () => {
     setError(null);
     setSelectedSpaceId(null);
 
-    // Mock geolocations based on search terms for Ghaziabad hub
-    let lat = 28.6360;
-    let lng = 77.4475;
+    // Geolocations matching all Delhi NCR hubs (Delhi, Noida, Greater Noida, Gurgaon, Ghaziabad)
+    let lat = searchLat || 28.6360;
+    let lng = searchLng || 77.4475;
     
     const lowerDest = destination.toLowerCase();
-    if (lowerDest.includes('vijay') || lowerDest.includes('community')) {
+    if (lowerDest.includes('connaught') || lowerDest.includes('cp') || lowerDest.includes('central delhi')) {
+      lat = 28.6315;
+      lng = 77.2167;
+    } else if (lowerDest.includes('south ext') || lowerDest.includes('lajpat') || lowerDest.includes('south delhi')) {
+      lat = 28.5700;
+      lng = 77.2200;
+    } else if (lowerDest.includes('airport') || lowerDest.includes('t3') || lowerDest.includes('igi')) {
+      lat = 28.5562;
+      lng = 77.0999;
+    } else if (lowerDest.includes('delhi') && !lowerDest.includes('noida') && !lowerDest.includes('ghaziabad')) {
+      lat = 28.6315;
+      lng = 77.2167;
+    } else if (lowerDest.includes('noida sector 18') || lowerDest.includes('atta') || lowerDest.includes('dlf mall')) {
+      lat = 28.5708;
+      lng = 77.3260;
+    } else if (lowerDest.includes('noida sector 62') || lowerDest.includes('stellar')) {
+      lat = 28.6280;
+      lng = 77.3680;
+    } else if (lowerDest.includes('noida') && !lowerDest.includes('greater')) {
+      lat = 28.5708;
+      lng = 77.3260;
+    } else if (lowerDest.includes('gaur city') || lowerDest.includes('noida extension') || lowerDest.includes('greater noida west')) {
+      lat = 28.6100;
+      lng = 77.4400;
+    } else if (lowerDest.includes('pari chowk') || lowerDest.includes('knowledge park') || lowerDest.includes('greater noida')) {
+      lat = 28.4670;
+      lng = 77.5140;
+    } else if (lowerDest.includes('cyber city') || lowerDest.includes('cyber hub') || lowerDest.includes('gurgaon') || lowerDest.includes('gurugram')) {
+      lat = 28.4950;
+      lng = 77.0890;
+    } else if (lowerDest.includes('golf course') || lowerDest.includes('horizon')) {
+      lat = 28.4590;
+      lng = 77.0980;
+    } else if (lowerDest.includes('mg road')) {
+      lat = 28.4800;
+      lng = 77.0800;
+    } else if (lowerDest.includes('indirapuram') || lowerDest.includes('shipra') || lowerDest.includes('habitat')) {
+      lat = 28.6360;
+      lng = 77.3710;
+    } else if (lowerDest.includes('vaishali')) {
+      lat = 28.6490;
+      lng = 77.3400;
+    } else if (lowerDest.includes('vasundhara')) {
+      lat = 28.6600;
+      lng = 77.3750;
+    } else if (lowerDest.includes('raj nagar')) {
+      lat = 28.6920;
+      lng = 77.4420;
+    } else if (lowerDest.includes('kavi nagar')) {
+      lat = 28.6700;
+      lng = 77.4500;
+    } else if (lowerDest.includes('railway') || lowerDest.includes('junction') || lowerDest.includes('station')) {
+      lat = 28.6650;
+      lng = 77.4320;
+    } else if (lowerDest.includes('sahibabad')) {
+      lat = 28.6720;
+      lng = 77.3820;
+    } else if (lowerDest.includes('govindpuram')) {
+      lat = 28.6850;
+      lng = 77.4780;
+    } else if (lowerDest.includes('mohan nagar')) {
+      lat = 28.6770;
+      lng = 77.3970;
+    } else if (lowerDest.includes('vijay')) {
       lat = 28.6410;
       lng = 77.4390;
     } else if (lowerDest.includes('crossing') || lowerDest.includes('republik')) {
@@ -213,7 +344,7 @@ export const DriverDashboard: React.FC = () => {
       setPaymentOrder(payOrder.order);
       setShowPayment(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to create reservation.');
+      setError(err.message || 'Failed to create reservation.');
     } finally {
       setCreatingBooking(false);
     }
@@ -246,7 +377,7 @@ export const DriverDashboard: React.FC = () => {
       });
 
     } catch (err: any) {
-      alert(err.message || 'Payment verification failed.');
+      setError(err.message || 'Payment verification failed.');
     } finally {
       setLoading(false);
     }
@@ -262,7 +393,19 @@ export const DriverDashboard: React.FC = () => {
         <form onSubmit={handleSearch} className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           
           <div className="flex flex-col gap-1 lg:col-span-2">
-            <label className="text-[10px] uppercase font-black text-gray-400">Destination</label>
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] uppercase font-black text-gray-400">Destination</label>
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locatingUser}
+                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Use device GPS location"
+              >
+                <LocateFixed className={`w-3 h-3 ${locatingUser ? 'animate-spin' : ''}`} />
+                <span>{locatingUser ? 'Locating...' : 'Use My Location'}</span>
+              </button>
+            </div>
             <div className="relative">
               <MapPin className="absolute left-3 top-3 w-4 h-4 text-indigo-500" />
               <input
@@ -328,11 +471,35 @@ export const DriverDashboard: React.FC = () => {
         </form>
       </section>
 
+      {/* Mobile Map / List View Switcher */}
+      <div className="lg:hidden flex p-1 bg-gray-200/60 dark:bg-slate-800/80 rounded-xl max-w-xs mx-auto mt-4 border border-gray-200 dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => setMobileTab('map')}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+            mobileTab === 'map' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-gray-600 dark:text-gray-400'
+          }`}
+        >
+          <Map className="w-4 h-4" />
+          <span>Map View</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('list')}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+            mobileTab === 'list' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-gray-600 dark:text-gray-400'
+          }`}
+        >
+          <List className="w-4 h-4" />
+          <span>List ({results.length})</span>
+        </button>
+      </div>
+
       {/* Main Split Interface */}
       <div className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 flex flex-col lg:flex-row gap-6">
         
         {/* Left Side: Search Results */}
-        <div className="w-full lg:w-3/5 flex flex-col gap-4">
+        <div className={`w-full lg:w-3/5 flex flex-col gap-4 ${mobileTab === 'map' ? 'hidden lg:flex' : 'flex'}`}>
           <div className="flex items-center justify-between">
             <h2 className="font-extrabold text-lg text-gray-900 flex items-center gap-2">
               <Compass className="w-5 h-5 text-indigo-600" />
@@ -396,13 +563,6 @@ export const DriverDashboard: React.FC = () => {
                         : 'border-gray-100 hover:border-gray-300 shadow-sm'
                     }`}
                   >
-                    {isTopMatch && (
-                      <div className="absolute top-0 right-4 -translate-y-1/2 bg-emerald-600 text-white px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                        <Sparkles className="w-3 h-3" />
-                        <span>Best Match</span>
-                      </div>
-                    )}
-
                     <div className="flex gap-4">
                       {/* Photo Thumbnail */}
                       <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-gray-100 bg-gray-50">
@@ -417,10 +577,20 @@ export const DriverDashboard: React.FC = () => {
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
                           <div className="flex justify-between items-start gap-2">
-                            <h3 className="font-extrabold text-sm text-gray-900 leading-snug">{space.name}</h3>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-extrabold text-sm text-gray-900 leading-snug">{space.name}</h3>
+                              {isTopMatch && (
+                                <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>Best Match</span>
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                              <span className="text-xs font-bold text-gray-700">{space.rating.toFixed(1)}</span>
+                              <span className="text-xs font-bold text-gray-700">
+                                {space.reviews && space.reviews.length > 0 ? space.rating.toFixed(1) : 'New'}
+                              </span>
                             </div>
                           </div>
 
@@ -440,15 +610,35 @@ export const DriverDashboard: React.FC = () => {
                                 Verified
                               </span>
                             )}
+                            {space.dimensions && (
+                              <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Ruler className="w-3 h-3 text-violet-500" />
+                                {space.dimensions}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              {space.parkingType === 'INDOOR' ? '🏢 Indoor Basement' : '☀️ Outdoor Open-Air'}
+                            </span>
+                            {space.operatingHours && (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-500" />
+                                {space.operatingHours}
+                              </span>
+                            )}
                           </div>
                         </div>
 
                         {/* Cost & AI Badge */}
                         <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
                           <div>
-                            <span className="text-xs text-gray-400">Total Est. </span>
-                            <span className="text-sm font-black text-gray-900">₹{space.pricePerHour * parseFloat(duration)}</span>
-                            <span className="text-[10px] text-gray-400 font-medium"> / {duration}h</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs text-gray-500 font-bold uppercase">Total Est.</span>
+                              <span className="text-base font-black text-gray-900">₹{space.pricePerHour * parseFloat(duration)}</span>
+                              <span className="text-xs text-gray-600 font-semibold">for {duration} hrs</span>
+                            </div>
+                            <div className="text-[11px] text-indigo-600 font-semibold mt-0.5">
+                              (₹{space.pricePerHour}/hr × {duration} hrs)
+                            </div>
                           </div>
                           
                           <div className="flex items-center gap-2">
@@ -503,7 +693,7 @@ export const DriverDashboard: React.FC = () => {
         </div>
 
         {/* Right Side: LeafletMap and detailed card summary */}
-        <div className="w-full lg:w-2/5 flex flex-col gap-4">
+        <div className={`w-full lg:w-2/5 flex flex-col gap-4 ${mobileTab === 'list' ? 'hidden lg:flex' : 'flex'}`}>
           <div className="h-[400px] lg:h-[450px]">
             <GoogleMapComponent
               center={[searchLat, searchLng]}
@@ -534,16 +724,80 @@ export const DriverDashboard: React.FC = () => {
                 {selectedSpaceDetail.description || 'No description provided.'}
               </p>
 
-              <div className="grid grid-cols-2 gap-3 mt-1.5">
+              <div className="grid grid-cols-3 gap-2 mt-1.5">
                 <div className="bg-gray-50/60 p-2.5 rounded-xl border border-gray-100/50 flex flex-col gap-0.5">
                   <span className="text-[9px] uppercase font-bold text-gray-400">Vehicle Type</span>
                   <span className="text-[11px] font-bold text-gray-700">
-                    {selectedSpaceDetail.vehicleType === 'BOTH' ? 'Cars & Bikes' : selectedSpaceDetail.vehicleType === 'FOUR_WHEELER' ? 'Four Wheelers Only' : 'Two Wheelers Only'}
+                    {selectedSpaceDetail.vehicleType === 'BOTH' ? 'Cars & Bikes' : selectedSpaceDetail.vehicleType === 'FOUR_WHEELER' ? 'Cars Only' : 'Bikes Only'}
                   </span>
                 </div>
                 <div className="bg-gray-50/60 p-2.5 rounded-xl border border-gray-100/50 flex flex-col gap-0.5">
-                  <span className="text-[9px] uppercase font-bold text-gray-400">Total Capacity</span>
+                  <span className="text-[9px] uppercase font-bold text-gray-400">Capacity</span>
                   <span className="text-[11px] font-bold text-gray-700">{selectedSpaceDetail.capacity} Vehicles</span>
+                </div>
+                <div className="bg-gray-50/60 p-2.5 rounded-xl border border-gray-100/50 flex flex-col gap-0.5">
+                  <span className="text-[9px] uppercase font-bold text-gray-400">Dimensions</span>
+                  <span className="text-[11px] font-bold text-violet-700 flex items-center gap-1">
+                    <Ruler className="w-3.5 h-3.5 text-violet-500" />
+                    <span>{selectedSpaceDetail.dimensions || '18 x 9 ft'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Environment & Operating Hours */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50/60 p-2.5 rounded-xl border border-gray-100/50 flex flex-col gap-0.5">
+                  <span className="text-[9px] uppercase font-bold text-gray-400">Environment</span>
+                  <span className="text-[11px] font-bold text-gray-700">
+                    {selectedSpaceDetail.parkingType === 'INDOOR' ? '🏢 Indoor Basement' : '☀️ Outdoor Open-Air'}
+                  </span>
+                </div>
+                <div className="bg-gray-50/60 p-2.5 rounded-xl border border-gray-100/50 flex flex-col gap-0.5">
+                  <span className="text-[9px] uppercase font-bold text-gray-400">Operating Hours</span>
+                  <span className="text-[11px] font-bold text-amber-700">
+                    {selectedSpaceDetail.operatingHours || '06:00 AM - 11:00 PM'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Spot Amenities & Features Checklist Badges */}
+              {selectedSpaceDetail.features && (
+                <div className="space-y-1.5">
+                  <span className="text-[9px] uppercase font-extrabold text-gray-400">Spot Amenities & Security</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedSpaceDetail.features.split(',').map((feat, idx) => (
+                      <span key={idx} className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100/50 flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3 text-indigo-500" />
+                        <span>{feat.trim()}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Verified Driver Reviews & Comments */}
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-extrabold text-gray-400 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    <span>Customer Reviews ({selectedSpaceDetail.reviews?.length || selectedSpaceDetail.reviewCount || 0})</span>
+                  </span>
+                  <span className="text-xs font-black text-gray-800">{selectedSpaceDetail.rating.toFixed(1)} ★</span>
+                </div>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {(!selectedSpaceDetail.reviews || selectedSpaceDetail.reviews.length === 0) ? (
+                    <p className="text-[11px] text-gray-400 italic">No customer reviews written yet for this location.</p>
+                  ) : (
+                    selectedSpaceDetail.reviews.map((rev: any, idx: number) => (
+                      <div key={rev.id || idx} className="bg-gray-50/80 p-2.5 rounded-xl border border-gray-100 flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-gray-800">{rev.driver?.name || 'Verified User'}</span>
+                          <span className="text-[10px] font-bold text-amber-500">{'★'.repeat(rev.rating)}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-600 leading-snug">{rev.comment}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

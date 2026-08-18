@@ -244,7 +244,7 @@ class ParkingController {
             if (!ownerId) {
                 return res.status(401).json({ error: 'Unauthorized: User session missing' });
             }
-            const { name, description, address, latitude, longitude, pricePerHour, capacity, vehicleType, imageUrl } = req.body;
+            const { name, description, address, latitude, longitude, pricePerHour, capacity, vehicleType, imageUrl, dimensions } = req.body;
             if (!name || !address || !latitude || !longitude || !pricePerHour || !capacity || !vehicleType || !imageUrl) {
                 return res.status(400).json({ error: 'Required fields missing to register parking listing.' });
             }
@@ -260,6 +260,7 @@ class ParkingController {
                     pricePerHour: parseFloat(pricePerHour),
                     capacity: parseInt(capacity),
                     vehicleType,
+                    dimensions: dimensions || '18 x 9 ft',
                     status: 'PENDING',
                     verificationScore: 0,
                     availabilityStatus: 'AVAILABLE',

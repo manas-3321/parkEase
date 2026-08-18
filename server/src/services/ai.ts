@@ -270,8 +270,8 @@ export class AIService {
       multiplier += 0.15;
       explanations.push('+15% surge due to low space availability');
     } else {
-      multiplier -= 0.05; // Discount slightly if totally vacant to attract drivers
-      explanations.push('-5% incentive discount to attract drivers (high vacancy)');
+      multiplier -= 0.05; // Discount slightly if totally vacant to attract users
+      explanations.push('-5% incentive discount to attract users (high vacancy)');
     }
 
     // 3. Time of day surge (evening and morning rush hours)

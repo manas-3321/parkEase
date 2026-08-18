@@ -20,7 +20,14 @@ export class ParkingController {
         where: whereClause,
         include: {
           images: true,
-          reviews: true,
+          reviews: {
+            include: {
+              driver: {
+                select: { name: true, email: true },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       });
 
@@ -108,7 +115,13 @@ export class ParkingController {
         },
         include: {
           images: true,
-          reviews: true,
+          reviews: {
+            include: {
+              driver: {
+                select: { name: true },
+              },
+            },
+          },
           verifications: true,
         },
       });
@@ -130,8 +143,8 @@ export class ParkingController {
             space.longitude
           );
 
-          // Only show spaces within 3km radius for relevance
-          if (distance > 3.0) return null;
+          // Show spaces within 100km radius (covers all Delhi, Noida, Greater Noida, Gurgaon & Ghaziabad)
+          if (distance > 100.0) return null;
 
           // Walking time: 12 minutes per km
           const walkingTime = Math.round(distance * 12);
@@ -179,29 +192,28 @@ export class ParkingController {
             searchDuration
           );
 
-          // Calculate average review rating
+          // Calculate average review rating based strictly on user reviews
           const avgRating =
             space.reviews.length > 0
-              ? space.reviews.reduce((acc, r) => acc + r.rating, 0) / space.reviews.length
-              : 4.5; // Default rating for verified properties without ratings
+              ? parseFloat((space.reviews.reduce((acc, r) => acc + r.rating, 0) / space.reviews.length).toFixed(1))
+              : 0;
 
           // Compute AI Scores
-          const distScore = Math.max(0, 100 - (distance / 2.0) * 100); // 100 points for 0km, 0 points for 2km+
+          const distScore = Math.max(0, 100 - (distance / 50.0) * 100); // 100 points for 0km, 0 points for 50km+
           const priceScore = Math.max(0, 100 - (space.pricePerHour / 80) * 100); // 100 points for ₹0, 0 points for ₹80+
           const availScore = availPredict.probability;
           const trafficScore =
-            trafficLevel === 'LOW'
-              ? 100
-              : trafficLevel === 'MEDIUM'
-              ? 70
+            trafficLevel === 'VERY_HIGH'
+              ? 10
               : trafficLevel === 'HIGH'
               ? 40
-              : 10;
-          const ratingScore = avgRating * 20; // Scale 0-5 to 0-100
+              : trafficLevel === 'MEDIUM'
+              ? 70
+              : 100;
+          const ratingScore = space.reviews.length > 0 ? avgRating * 20 : 70; // 0-100 scale
           const reliabilityScore = space.verificationScore || 90;
 
-          // AI Weighted Scoring (from requirements):
-          // 30% convenience (distance/walk), 20% price, 20% availability, 15% traffic, 10% rating, 5% reliability
+          // AI Weighted Scoring:
           const aiScore = Math.round(
             0.3 * distScore +
               0.2 * priceScore +
@@ -232,13 +244,15 @@ export class ParkingController {
             recommendations.push(`✓ High occupancy confidence (${availPredict.probability}% probability)`);
           }
 
-          const avgPriceNear = 50; // Reference average
+          const avgPriceNear = 50;
           if (space.pricePerHour < avgPriceNear) {
             recommendations.push(`✓ ₹${Math.round(avgPriceNear - space.pricePerHour)} cheaper than average nearby`);
           }
 
-          if (avgRating >= 4.7) {
-            recommendations.push(`✓ Excellent guest reviews (${avgRating.toFixed(1)}★)`);
+          if (space.reviews.length > 0 && avgRating >= 4.5) {
+            recommendations.push(`✓ High guest rating (${avgRating.toFixed(1)}★)`);
+          } else if (space.reviews.length > 0 && avgRating < 3.5) {
+            recommendations.push(`⚠ Mixed guest reviews (${avgRating.toFixed(1)}★)`);
           }
 
           return {
@@ -254,6 +268,11 @@ export class ParkingController {
             status: space.status,
             verificationScore: space.verificationScore,
             availabilityStatus: space.availabilityStatus,
+            dimensions: space.dimensions || '18 x 9 ft',
+            parkingType: space.parkingType || 'OUTDOOR',
+            operatingHours: space.operatingHours || '06:00 AM - 11:00 PM',
+            features: space.features || 'CCTV Security, Secured Gate, Night Lighting',
+            reviews: space.reviews || [],
             images: space.images,
             distance,
             walkingTime,
@@ -293,7 +312,7 @@ export class ParkingController {
         return res.status(401).json({ error: 'Unauthorized: User session missing' });
       }
 
-      const { name, description, address, latitude, longitude, pricePerHour, capacity, vehicleType, imageUrl } =
+      const { name, description, address, latitude, longitude, pricePerHour, capacity, vehicleType, imageUrl, dimensions, parkingType, operatingHours, features } =
         req.body;
 
       if (!name || !address || !latitude || !longitude || !pricePerHour || !capacity || !vehicleType || !imageUrl) {
@@ -312,6 +331,10 @@ export class ParkingController {
           pricePerHour: parseFloat(pricePerHour),
           capacity: parseInt(capacity),
           vehicleType,
+          dimensions: dimensions || '18 x 9 ft',
+          parkingType: parkingType || 'OUTDOOR',
+          operatingHours: operatingHours || '06:00 AM - 11:00 PM',
+          features: features || 'CCTV Security, Secured Gate, Night Lighting',
           status: 'PENDING',
           verificationScore: 0,
           availabilityStatus: 'AVAILABLE',

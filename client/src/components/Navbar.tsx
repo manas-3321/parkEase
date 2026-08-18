@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Bell, LogOut, User, Navigation, ShieldCheck, BarChart3, LayoutDashboard, PlusCircle, BookOpen } from 'lucide-react';
+import { Bell, LogOut, User, Navigation, ShieldCheck, BarChart3, LayoutDashboard, PlusCircle, BookOpen, Sun, Moon, Menu, X } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 interface NotificationItem {
   id: string;
@@ -13,10 +14,12 @@ interface NotificationItem {
 
 export const Navbar: React.FC = () => {
   const { user, logout, apiFetch } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const fetchNotifications = async () => {
     if (!user) return;
@@ -165,7 +168,20 @@ export const Navbar: React.FC = () => {
         )}
 
         {/* Profile & Notifications Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Dark / Light Mode Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="p-2.5 rounded-xl border border-gray-100 hover:bg-gray-100 text-gray-600 transition-colors flex items-center justify-center"
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-5 h-5 text-amber-400 animate-spin-slow" />
+            ) : (
+              <Moon className="w-5 h-5 text-indigo-600" />
+            )}
+          </button>
+
           {user ? (
             <>
               {/* Notification Bell */}
@@ -258,8 +274,87 @@ export const Navbar: React.FC = () => {
               </Link>
             </div>
           )}
+
+          {/* Mobile Hamburger Toggle */}
+          {user && (
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2.5 rounded-xl border border-gray-100 hover:bg-gray-100 text-gray-600 transition-colors"
+              title="Toggle Menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Mobile Drawer Navigation */}
+      {mobileMenuOpen && user && (
+        <div className="md:hidden border-t border-gray-100 bg-white p-4 space-y-2 animate-in slide-in-from-top-2 duration-200">
+          {user.role === 'DRIVER' && (
+            <>
+              <Link
+                to="/driver"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-indigo-50 text-xs font-bold text-gray-800 hover:text-indigo-600 transition-colors"
+              >
+                <LayoutDashboard className="w-4 h-4 text-indigo-600" />
+                <span>Search & Find Parking</span>
+              </Link>
+              <Link
+                to="/driver/bookings"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-indigo-50 text-xs font-bold text-gray-800 hover:text-indigo-600 transition-colors"
+              >
+                <BookOpen className="w-4 h-4 text-indigo-600" />
+                <span>My Bookings</span>
+              </Link>
+            </>
+          )}
+
+          {user.role === 'OWNER' && (
+            <>
+              <Link
+                to="/owner"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-indigo-50 text-xs font-bold text-gray-800 hover:text-indigo-600 transition-colors"
+              >
+                <LayoutDashboard className="w-4 h-4 text-indigo-600" />
+                <span>Listings & Earnings</span>
+              </Link>
+              <Link
+                to="/owner/add-space"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700 transition-colors"
+              >
+                <PlusCircle className="w-4 h-4 text-indigo-600" />
+                <span>List New Parking Space</span>
+              </Link>
+            </>
+          )}
+
+          {user.role === 'ADMIN' && (
+            <>
+              <Link
+                to="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-indigo-50 text-xs font-bold text-gray-800 hover:text-indigo-600 transition-colors"
+              >
+                <BarChart3 className="w-4 h-4 text-indigo-600" />
+                <span>Analytics</span>
+              </Link>
+              <Link
+                to="/admin/queue"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-indigo-50 text-xs font-bold text-gray-800 hover:text-indigo-600 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                <span>Verification Queue</span>
+              </Link>
+            </>
+          )}
+        </div>
+      )}
     </header>
   );
 };
